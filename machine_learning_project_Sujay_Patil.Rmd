@@ -1,0 +1,465 @@
+---
+title: "Machine Learning Project"
+---
+
+
+**Your Name**: Sujay Patil
+**Your G Number**: G01270796
+
+
+
+```{r warning = FALSE, message = FALSE}
+# Suppress dplyr summarise grouping warning messages
+options(dplyr.summarise.inform = FALSE)
+
+library(tidyverse)
+library(tidymodels)
+
+credit_card_df <- readRDS(url('https://gmubusinessanalytics.netlify.app/data/credit_card_df.rds'))
+
+```
+
+
+
+# Data Analysis
+
+In this section, you must think of at least 5 relevant questions that explore the relationship between `customer_status` and the other variables in the `credit_card_df` data set. The goal of your analysis should be discovering which variables drive the differences between customers who do and do not close their account.
+
+You must answer each question and provide supporting data summaries with either a summary data frame (using `dplyr`/`tidyr`) or a plot (using `ggplot`) or both.
+
+In total, you must have a minimum of 3 plots (created with `ggplot`) and 3 summary data frames (created with `dplyr`) for the exploratory data analysis section. Among the plots you produce, you must have at least 3 different types (ex. box plot, bar chart, histogram, scatter plot, etc...)
+
+See the [Data Analysis Project](https://gmubusinessanalytics.netlify.app/data-analysis-project.html){target="_blank"} for an example of a question answered with a summary table and plot.
+
+**Note**: To add an R code chunk to any section of your project, you can use the keyboard shortcut `Ctrl` + `Alt` + `i` or the `insert` button at the top of your R project template notebook file.
+
+
+
+# Question 1
+
+**Question**: Is card_type the reason of customers closing the account ?
+
+**Answer**: Yes, we can see that out of 2092 customers that left the company 1500 had blue card type which is the highest. Also the active customers are the highest in blue type card so the bank so focus more on upgrading the benefits in this card type to retain the customers.
+
+
+```{r}
+
+credit_card_df %>% group_by(customer_status) %>%
+              summarise(count = n())
+
+
+credit_card_df %>% group_by(customer_status,card_type) %>%
+              summarise(count = n())
+
+ggplot(credit_card_df, aes(card_type , ..count..)) + geom_bar(aes(fill = customer_status), position = "dodge")  
+
+```
+
+
+
+# Question 2
+
+
+**Question**: How many months were the customer inactive before they closed their account?
+
+
+**Answer**: From the analysis we can say the highest number of customers who closed their account were inactive for around 3 months last year before closing their account. Almost half the customers who closed account were inactive for three months.
+
+
+```{r}
+credit_card_df  %>% group_by(customer_status,months_inactive_last_year) %>%
+              summarise(count = n())
+
+ggplot(data = credit_card_df, aes(x = months_inactive_last_year, fill = customer_status)) +geom_histogram(aes(y = ..density..), bins = 7) +
+   facet_wrap(~ customer_status, nrow = 2) +
+   labs(title = "customer_status ( Service - ACTIVE/CLOSED)",
+           x = "months_inactive_lastyear", y = "count")
+
+```
+
+
+# Question 3
+
+
+**Question**: Is there any employment type prone to more closing accounts ? IS it because of the credit limit offered ?
+
+
+**Answer**: Yes, part-time employees seem to close the account more than other employment status. This might be because they are quitting  their jobs or cannot afford the credit-card.
+```{r}
+credit_card_df  %>% group_by(customer_status,employment_status) %>%
+              summarise(count1 = n())
+```
+
+
+```{r}
+credit_card_df  %>% group_by(customer_status,employment_status) %>%
+              summarise(median_credit_limit = median(credit_limit))
+
+ggplot(credit_card_df, aes(employment_status , ..count..)) + geom_bar(aes(fill = customer_status), position = "dodge")
+
+```
+
+
+
+# Question 4
+
+
+**Question**: Are the customers who closed their account contacted sufficient number of times during the year before closing their account ?
+
+
+**Answer**: The highest number of customers who closed their accounts were contacted only three times over the year. The customers who were contacted more times are still active and did not close their account as they might have been given better offers and rewards.
+
+
+```{r}
+
+
+credit_card_df  %>% group_by(customer_status,contacted_last_year) %>%
+              summarise(count = n())
+
+
+
+```
+
+
+
+# Question 5
+
+
+**Question**: Is there a relationship between customer_status and income ?
+
+
+**Answer**: Median of the active customer is slightly more than median of the customers who has closed their account. Since the difference is negligible, we can't clearly say that customers with high salaried are having active credit account. 
+
+
+```{r}
+ggplot(credit_card_df, aes(x = customer_status, y = income)) +
+        geom_boxplot() 
+
+```
+
+
+
+
+# Machine Learning
+
+
+In this section of the project, you will fit **three classification algorithms** to predict the outcome variable,`customer_status`.
+
+You must follow the machine learning steps below. 
+
+The data splitting and feature engineering steps should only be done once so that your models are using the same data and feature engineering steps for training.
+
+- Split the `credit_card_df` data into a training and test set (remember to set your seed)
+- Specify a feature engineering pipeline with the `recipes` package
+    - You can include steps such as skewness transformation, correlation filters, dummy variable encoding or any other steps you find appropriate
+- Specify a `parsnip` model object
+    - You may choose from the following classification algorithms:
+      - Logistic Regression
+      - LDA
+      - QDA
+      - KNN
+      - Decision Tree
+      - Random Forest
+- Package your recipe and model into a workflow
+- Fit your workflow to the training data
+    - If your model has hyperparameters:
+      - Split the training data into 5 folds for 5-fold cross validation using `vfold_cv` (remember to set your seed)
+      - Perform hyperparamter tuning with a random grid search using the `grid_random()` function
+      - Refer to the following tutorial for an example - [Random Grid Search](https://gmubusinessanalytics.netlify.app/lesson-08-r-tutorial.html#Hyperparameter_Tuning14){target="_blank"}
+      - Hyperparameter tuning can take a significant amount of computing time. Be careful not to set the `size` argument of `grid_random()` too large. I recommend `size` = 10 or smaller.
+      - Select the best model with `select_best()` and finalize your workflow
+- Evaluate model performance on the test set by plotting an ROC curve using `autoplot()` and calculating the area under the ROC curve on your test data
+
+
+
+
+
+```{r}
+set.seed(356)
+
+credit_card_df_split <- initial_split( credit_card_df , prop = 0.75,
+                              strata = customer_status)
+
+credit_card_df_training <- credit_card_df_split %>% training()
+
+credit_card_df_test <- credit_card_df_split%>% testing()
+
+
+#Feature Engineering 
+
+credit_card_df_recipe <- recipe(customer_status ~., data = credit_card_df) %>% 
+                 step_YeoJohnson(all_numeric(), -all_outcomes()) %>% 
+                 step_normalize(all_numeric(), -all_outcomes()) %>% 
+                 step_dummy(all_nominal(), -all_outcomes())
+
+
+credit_card_df_recipe %>% 
+  prep() %>% 
+  bake(new_data = NULL)
+
+
+set.seed(356)
+credit_card_df_folds <- vfold_cv(credit_card_df, v = 5)
+levels(credit_card_df$customer_status)
+
+```
+
+
+
+# Model 1 Decision Tree
+
+```{r}
+library(vip)
+library(rpart.plot)
+
+tree_model <- decision_tree(cost_complexity = tune(),
+                            tree_depth = tune(),
+                            min_n = tune()) %>% 
+              set_engine('rpart') %>% 
+              set_mode('classification')
+              
+set.seed(356)
+
+tree_workflow <- workflow() %>% 
+                 add_model(tree_model) %>% 
+                 add_recipe(credit_card_df_recipe)
+
+tree_grid <- grid_regular(cost_complexity(),
+                          tree_depth(),
+                          min_n(), 
+                          levels = 2)
+tree_grid
+
+set.seed(356)
+
+tree_tuning <- tree_workflow %>% 
+               tune_grid(resamples = credit_card_df_folds,
+                         grid = tree_grid)
+
+tree_tuning %>% show_best('roc_auc')
+
+best_tree <- tree_tuning %>% 
+             select_best(metric = 'roc_auc')
+
+best_tree
+
+final_tree_workflow <- tree_workflow %>% 
+                       finalize_workflow(best_tree)
+
+tree_wf_fit <- final_tree_workflow %>% 
+               fit(data = credit_card_df_training)
+
+tree_fit <- tree_wf_fit %>% 
+            extract_fit_parsnip()
+
+vip(tree_fit)
+
+rpart.plot(tree_fit$fit, roundint = FALSE, extra = 2)
+
+tree_last_fit <- final_tree_workflow %>% 
+                 last_fit(credit_card_df_split)
+
+tree_last_fit %>% collect_predictions() %>% 
+                  roc_curve(truth  = customer_status, estimate = .pred_closed_account) %>% 
+                  autoplot()
+
+tree_predictions <- tree_last_fit %>% collect_predictions()
+
+my_metrics_set<- metric_set(accuracy,sens,spec,f_meas)
+my_metrics_set(tree_predictions,truth=customer_status,estimate=.pred_class)
+
+conf_mat(tree_predictions, truth = customer_status, estimate = .pred_class)
+
+```
+
+
+
+
+
+# Model 2
+
+```{r}
+#Random Forest
+library(ranger)
+library(ggplot2)
+random_forest_model <- rand_forest(mtry = tune(),
+                        trees = tune(),
+                        min_n = tune()) %>% 
+            set_engine('ranger', importance = "impurity") %>% 
+            set_mode('classification')
+random_forest_workflow <- workflow() %>% 
+               add_model(random_forest_model) %>% 
+               add_recipe(credit_card_df_recipe)
+
+
+set.seed(356)
+
+random_forest_grid <- grid_random(mtry() %>% range_set(c(3, 5)),
+                       trees(),
+                       min_n(),
+                       size = 5)
+
+random_forest_grid
+
+set.seed(356)
+
+random_forest_tuning <- random_forest_workflow %>% 
+             tune_grid(resamples = credit_card_df_folds,
+                       grid = random_forest_grid)
+
+random_forest_tuning %>% show_best('roc_auc')
+
+best_random_forest <- random_forest_tuning %>% 
+           select_best(metric = 'roc_auc')
+
+
+best_random_forest
+
+final_random_forest_workflow <- random_forest_workflow %>% 
+                     finalize_workflow(best_random_forest)
+random_forest_wf_fit <- final_random_forest_workflow %>% 
+             fit(data = credit_card_df_training)
+random_forest_fit <- random_forest_wf_fit %>% 
+          extract_fit_parsnip()
+random_forest_last_fit <- final_random_forest_workflow %>% 
+               last_fit(credit_card_df_split)
+
+
+
+
+random_forest_last_fit %>% collect_predictions() %>% 
+                roc_curve(truth  = customer_status, estimate = .pred_closed_account) %>% 
+                autoplot()
+
+random_forest_predictions <- random_forest_last_fit %>% collect_predictions()
+
+
+my_metrics_set<- metric_set(accuracy,sens,spec,f_meas)
+my_metrics_set(random_forest_predictions,truth=customer_status,estimate=.pred_class)
+
+
+conf_mat(random_forest_predictions, truth = customer_status, estimate = .pred_class)
+
+
+
+
+```
+
+
+
+
+
+# Model 3
+
+```{r}
+
+set.seed(356)
+logistic_model <- logistic_reg() %>% 
+                  set_engine('glm') %>% 
+                  set_mode('classification')
+
+logistic_workflow <- workflow() %>% 
+               add_model(logistic_model) %>% 
+               add_recipe(credit_card_df_recipe)
+
+logistic_fit <-  logistic_workflow %>% 
+                 last_fit(split=credit_card_df_split)
+
+logistic_results <-  logistic_fit %>% 
+                     collect_predictions()
+
+
+
+roc_curve( logistic_results , truth = customer_status,estimate = .pred_closed_account ) %>% 
+  autoplot()
+
+
+roc_auc(logistic_results, truth = customer_status, .pred_closed_account)
+
+
+conf_mat(logistic_results, truth = customer_status, estimate = .pred_class)
+
+
+
+my_metrics_set<- metric_set(accuracy,sens,spec,f_meas)
+my_metrics_set(logistic_results,truth=customer_status,estimate=.pred_class)
+
+
+```
+
+
+
+
+# Summary of Results
+
+Write a summary of your overall findings and recommendations to the executives at the bank. Think of this section as your closing remarks of a presentation, where you summarize your key findings, model performance, and make recommendations to improve customer retention and service at the bank.
+
+Your executive summary must be written in a [professional tone](https://www.universalclass.com/articles/writing/business-writing/appropriate-tone-in-business-communications.htm){target="_blank"}, with minimal grammatical errors, and should include the following sections:
+
+1. An introduction where you explain the business problem and goals of your data analysis
+
+    - What problem(s) is this company trying to solve? Why are they important to their future success?
+  
+    - What was the goal of your analysis? What questions were you trying to answer and why do they matter?
+
+<br>
+
+2. Highlights and key findings from your Exploratory Data Analysis section 
+    - What were the interesting findings from your analysis and **why are they important for the business**?
+
+    - This section is meant to **establish the need for your recommendations** in the following section
+
+<br>
+
+3. Your “best” classification model and an analysis of its performance 
+    - In this section you should talk about the expected error of your model on future data
+      - To estimate future performance, you can use your model performance results on the **test data**
+    - You should discuss at least one performance metric, such as an F1, sensitivity, specificity, or ROC AUC for your model. However, you must explain the results in an **intuitive, non-technical manner**. Your audience in this case are executives at a bank with limited knowledge of machine learning.
+
+<br>
+
+4. Your recommendations to the bank on how to reduce the number of customers closing their credit card accounts 
+  
+    - Each recommendation must be supported by your data analysis results 
+
+    - You must clearly explain why you are making each recommendation and which results from your data analysis support this recommendation
+
+    - You must also describe the potential business impact of your recommendation:
+      
+      - Why is this a good recommendation? 
+      
+      - What benefits will the business achieve?
+
+
+**Summary**
+
+1. Introduction,
+
+The main objective of this business problem is to find the factors that have led the customers to close their accounts and also predict the potential customers who will in future close their account beforehand so that bank can offer more benefits to keep the customers active.
+
+The bank has experienced record levels of customers closing their credit accounts in the past couple of years and this is leading to declining revenue.Therefore, the bank’s goal is to predict these customers and hold them from closing the account so that their financial losses are minimized.
+
+2. Highlights and key findings.
+
+From the analysis in question 1 we can see that the customers who closed their accounts were maximum in the blue card type. More than half of the customers who closed their accounts had blue credit card. These might be because the offers and rewards for blue type credit card are not very impressive, and customers are not satisfied with it. 
+
+From the histogram we can observe that the customers who closed accounts where inactive for three months in the previous. Almost 1100 customers out of 2000 were inactive for three months last year. These may be due to some financial crisis the customers were going through and so might be thinking of closing the credit card account.
+
+Further analyzing the data, we observe that the customers with part-time employment status are the highest customers who have closed their accounts. Job uncertainty, low income might be the reasons why they cannot afford the credit card and had to close their accounts. Also, amongst all the employment type full time customers have the highest number of active accounts.
+
+Moreover, the maximum customers who closed credit card accounts were contacted only three times last year. There are more active customers who were contacted three or less times. Therefore, the number of times customers were contacted last year does not have any influence on the customers closing their accounts or staying active.
+
+According to the Box plot, the median income of active customers is slightly higher than the median income of customers who have closed their accounts. Thus, it does not imply that customers with high salaries have active credit accounts because the difference is very small.
+
+3. Best Classification Model.
+
+After using different machine learning models such as decision tree, random forest, and logistic regression to predict the customer status we can conclude that random forest performs better than other models. The accuracy of random forest is 95% and the recall is 95% (which means that for every 100 customers who are closing the account our model will catch 95 customers accurately) which is a perfect model for bank. 
+Therefore, in this case Random Forest is the best model to use for predicting the customers who will close their accounts in future.
+
+4. Recommendations.
+
+Firstly, I would recommend the bank to upgrade the offers, rewards and benefits on blue credit card. This would attract the customers and use the card more often. Also, these might help the bank to retain their customers and maximize their financial revenue.
+
+Second, the bank should contact the customers who are inactive for more than two months and check in if anything is wrong with there credit card. Also provide some cashback offers to lure the customers in using their credit card on at least basic amenities.
+
+
